@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Sequence
 
 import altair as alt
 import streamlit as st
@@ -20,7 +20,7 @@ from least_squares import (
 
 
 APP_TITLE = "Visualizador de Mínimos Cuadrados"
-CHART_HEIGHT = 360
+CHART_HEIGHT = 440
 MAX_SQUARES = 60
 MAX_POINT_LABELS = 20
 MAX_DETAIL_ROWS = 50
@@ -143,8 +143,9 @@ def initialize_state() -> None:
         "own_show_e2_labels": False,
         "own_slider_version": 0,
         "own_data_signature": "",
-        "own_editor_version": 0,
-        "own_editor_seed": [dict(row) for row in SAMPLE_ROWS],
+        "own_grid_version": 0,
+        "own_grid_rows": 6,
+        "own_grid_seed": [dict(row) for row in SAMPLE_ROWS],
         "own_committed_x": None,
         "own_committed_y": None,
     }
@@ -621,96 +622,140 @@ def render_simulation() -> None:
     render_workspace("sim", st.session_state.sim_x, st.session_state.sim_y)
 
 
-def normalize_editor_records(data: object) -> list[dict[str, object]]:
-    if isinstance(data, list):
-        return [dict(row) for row in data if isinstance(row, Mapping)]
-    if hasattr(data, "to_dict"):
-        try:
-            records = data.to_dict("records")
-        except TypeError:
-            records = data.to_dict()
-        if isinstance(records, list):
-            return [dict(row) for row in records]
-    if isinstance(data, Mapping):
-        keys = list(data.keys())
-        if not keys:
-            return []
-        columns = [data[key] for key in keys]
-        if all(isinstance(column, Sequence) and not isinstance(column, (str, bytes)) for column in columns):
-            row_count = max((len(column) for column in columns), default=0)
-            return [
-                {key: data[key][i] if i < len(data[key]) else None for key in keys}
-                for i in range(row_count)
-            ]
-    return []
+def _normalize_grid_seed(rows: Sequence[dict[str, object]], row_count: int) -> list[dict[str, object]]:
+    """Devuelve exactamente ``row_count`` filas seguras para inicializar la grilla."""
+    safe: list[dict[str, object]] = []
+    for row in rows[:row_count]:
+        x_value = row.get("X") if isinstance(row, dict) else None
+        y_value = row.get("Y") if isinstance(row, dict) else None
+        safe.append({"X": x_value, "Y": y_value})
+    while len(safe) < row_count:
+        safe.append({"X": None, "Y": None})
+    return safe
 
 
-def replace_editor_data(rows: list[dict[str, object]]) -> None:
-    """Reconstruye la planilla sin modificar un widget ya instanciado."""
-    safe_rows = [dict(row) for row in rows] if rows else [dict(row) for row in EMPTY_ROWS]
-    st.session_state.own_editor_seed = safe_rows
-    st.session_state.own_editor_version += 1
-    st.session_state.own_committed_x = None
-    st.session_state.own_committed_y = None
-    st.session_state.own_show_mc = False
+def _grid_widget_key(axis: str, version: int, index: int) -> str:
+    return f"own_grid_{axis}_{version}_{index}"
+
+
+def _capture_grid(version: int, row_count: int) -> list[dict[str, object]]:
+    """Captura los valores actuales sin depender de pandas, Arrow ni data_editor."""
+    rows: list[dict[str, object]] = []
+    for index in range(row_count):
+        rows.append(
+            {
+                "X": st.session_state.get(_grid_widget_key("x", version, index)),
+                "Y": st.session_state.get(_grid_widget_key("y", version, index)),
+            }
+        )
+    return rows
+
+
+def _rebuild_grid(rows: Sequence[dict[str, object]], row_count: int) -> None:
+    """Reconstruye la grilla con claves nuevas antes de crear sus widgets."""
+    row_count = max(2, min(int(row_count), 100))
+    st.session_state.own_grid_seed = _normalize_grid_seed(rows, row_count)
+    st.session_state.own_grid_rows = row_count
+    st.session_state.own_grid_version += 1
+
+
+def load_example_grid() -> None:
+    _rebuild_grid([dict(row) for row in SAMPLE_ROWS], len(SAMPLE_ROWS))
+
+
+def clear_grid() -> None:
+    """Crea una grilla nueva en blanco; no modifica el gráfico ya confirmado."""
+    _rebuild_grid([{"X": None, "Y": None} for _ in range(6)], 6)
+
+
+def resize_grid(delta: int, version: int, row_count: int) -> None:
+    """Añade o quita una fila conservando las celdas ya escritas."""
+    rows = _capture_grid(version, row_count)
+    new_count = max(2, min(row_count + int(delta), 100))
+    if new_count > row_count:
+        rows.extend({"X": None, "Y": None} for _ in range(new_count - row_count))
+    else:
+        rows = rows[:new_count]
+    _rebuild_grid(rows, new_count)
 
 
 def render_own_data() -> None:
     st.subheader("Planilla de datos")
     st.caption(
-        "Edite la planilla y pulse **Generar gráfico**. Los cambios no afectan el gráfico "
-        "hasta que se confirman, lo que evita recálculos mientras se escribe."
+        "Complete las celdas y pulse **Generar gráfico**. Editar, agregar, quitar o "
+        "vaciar filas no modifica el último gráfico confirmado."
     )
 
-    actions = st.columns([0.20, 0.20, 0.60])
+    version = int(st.session_state.own_grid_version)
+    row_count = int(st.session_state.own_grid_rows)
+    seed_rows = _normalize_grid_seed(st.session_state.own_grid_seed, row_count)
+
+    actions = st.columns([0.18, 0.18, 0.14, 0.14, 0.36], gap="small")
     actions[0].button(
         "Cargar ejemplo",
         width="stretch",
-        on_click=replace_editor_data,
-        args=([dict(row) for row in SAMPLE_ROWS],),
+        on_click=load_example_grid,
     )
     actions[1].button(
         "Vaciar planilla",
         width="stretch",
-        on_click=replace_editor_data,
-        args=([dict(row) for row in EMPTY_ROWS],),
+        on_click=clear_grid,
+    )
+    actions[2].button(
+        "+ Fila",
+        width="stretch",
+        on_click=resize_grid,
+        args=(1, version, row_count),
+        disabled=row_count >= 100,
+    )
+    actions[3].button(
+        "− Fila",
+        width="stretch",
+        on_click=resize_grid,
+        args=(-1, version, row_count),
+        disabled=row_count <= 2,
     )
 
-    editor_key = f"own_data_editor_{st.session_state.own_editor_version}"
-    with st.form(
-        key=f"own_data_form_{st.session_state.own_editor_version}",
-        clear_on_submit=False,
-        enter_to_submit=False,
-    ):
-        edited = st.data_editor(
-            st.session_state.own_editor_seed,
-            key=editor_key,
-            width="stretch",
-            height=285,
-            hide_index=True,
-            num_rows="dynamic",
-            row_height=36,
-            column_order=("X", "Y"),
-            column_config={
-                "X": st.column_config.NumberColumn("X", format="%.3f"),
-                "Y": st.column_config.NumberColumn("Y", format="%.3f"),
-            },
-        )
-        generate = st.form_submit_button("Generar gráfico", width="stretch")
+    with st.container(border=True):
+        header = st.columns([0.09, 0.455, 0.455], gap="small")
+        header[0].markdown("**Fila**")
+        header[1].markdown("**X**")
+        header[2].markdown("**Y**")
+
+        current_rows: list[dict[str, object]] = []
+        for index in range(row_count):
+            columns = st.columns([0.09, 0.455, 0.455], gap="small")
+            columns[0].markdown(f"**{index + 1}**")
+            x_value = columns[1].number_input(
+                f"X fila {index + 1}",
+                value=seed_rows[index].get("X"),
+                step=0.1,
+                format="%.6f",
+                key=_grid_widget_key("x", version, index),
+                label_visibility="collapsed",
+                placeholder="Ingrese X",
+            )
+            y_value = columns[2].number_input(
+                f"Y fila {index + 1}",
+                value=seed_rows[index].get("Y"),
+                step=0.1,
+                format="%.6f",
+                key=_grid_widget_key("y", version, index),
+                label_visibility="collapsed",
+                placeholder="Ingrese Y",
+            )
+            current_rows.append({"X": x_value, "Y": y_value})
+
+    generate = actions[4].button("Generar gráfico", width="stretch", type="primary")
 
     if generate:
-        records = normalize_editor_records(edited)
-        # Nunca se almacena una tabla de cero filas: se conservan filas vacías seguras.
-        st.session_state.own_editor_seed = (
-            [dict(row) for row in records] if records else [dict(row) for row in EMPTY_ROWS]
-        )
+        # El borrador solo se transfiere al gráfico después de una validación completa.
         try:
-            x, y, incomplete = editor_rows_to_xy(records)
+            x, y, incomplete = editor_rows_to_xy(current_rows)
         except ValueError as exc:
-            st.session_state.own_committed_x = None
-            st.session_state.own_committed_y = None
             st.error(str(exc), icon="⚠️")
         else:
+            st.session_state.own_grid_seed = [dict(row) for row in current_rows]
             st.session_state.own_committed_x = list(x)
             st.session_state.own_committed_y = list(y)
             st.session_state.own_show_mc = False
@@ -733,7 +778,6 @@ def render_own_data() -> None:
 
     st.divider()
     render_workspace("own", committed_x, committed_y)
-
 
 def main() -> None:
     apply_balanced_css()
