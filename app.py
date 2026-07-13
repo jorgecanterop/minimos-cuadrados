@@ -20,7 +20,7 @@ from least_squares import (
 
 
 APP_TITLE = "Visualizador de Mínimos Cuadrados"
-CHART_HEIGHT = 440
+CHART_HEIGHT = 500
 MAX_SQUARES = 60
 MAX_POINT_LABELS = 20
 MAX_DETAIL_ROWS = 50
@@ -58,45 +58,59 @@ def apply_balanced_css() -> None:
         """
         <style>
         .block-container {
-            max-width: 1480px;
-            padding-top: 0.65rem;
-            padding-bottom: 1rem;
+            max-width: 1500px;
+            padding-top: 0.75rem;
+            padding-bottom: 1.35rem;
         }
         html, body, .stApp {
             font-size: 17px;
         }
         h1 {
-            font-size: 1.78rem !important;
+            font-size: 1.86rem !important;
             line-height: 1.15 !important;
-            margin-bottom: 0.20rem !important;
+            margin-bottom: 0.18rem !important;
+            letter-spacing: -0.015em;
         }
         h2 {
-            font-size: 1.36rem !important;
-            line-height: 1.20 !important;
+            font-size: 1.34rem !important;
+            line-height: 1.22 !important;
+            margin-top: 0.30rem !important;
         }
         h3 {
-            font-size: 1.15rem !important;
-            line-height: 1.20 !important;
+            font-size: 1.14rem !important;
+            line-height: 1.22 !important;
         }
         div[data-testid="stWidgetLabel"] p,
         div[data-testid="stMarkdownContainer"] p {
-            font-size: 0.98rem;
+            font-size: 0.99rem;
+            line-height: 1.42;
+        }
+        div[data-testid="stMetric"] {
+            background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFD 100%);
+            border: 1px solid #DCE4ED;
+            border-radius: 0.80rem;
+            padding: 0.62rem 0.72rem;
         }
         div[data-testid="stMetricLabel"] p {
-            font-size: 0.90rem !important;
+            font-size: 0.89rem !important;
+            font-weight: 600 !important;
         }
         div[data-testid="stMetricValue"] {
-            font-size: 1.28rem !important;
+            font-size: 1.25rem !important;
+            letter-spacing: -0.01em;
         }
         div[data-testid="stCaptionContainer"] p {
-            font-size: 0.88rem !important;
-            line-height: 1.30 !important;
+            font-size: 0.90rem !important;
+            line-height: 1.38 !important;
+            color: #526171;
         }
         div[data-testid="stButton"] button,
         div[data-testid="stFormSubmitButton"] button {
             min-height: 2.55rem;
-            padding: 0.42rem 0.72rem;
+            padding: 0.42rem 0.74rem;
             white-space: nowrap !important;
+            border-radius: 0.68rem;
+            font-weight: 600;
         }
         div[data-testid="stButton"] button p,
         div[data-testid="stFormSubmitButton"] button p {
@@ -104,11 +118,20 @@ def apply_balanced_css() -> None:
             white-space: nowrap !important;
             line-height: 1.05 !important;
         }
-        div[data-testid="stDataEditor"] {
-            font-size: 0.94rem;
+        div[data-testid="stNumberInput"] input {
+            border-radius: 0.58rem;
+        }
+        div[data-testid="stExpander"] {
+            border-radius: 0.75rem;
+            overflow: hidden;
         }
         div[data-testid="stExpander"] summary p {
-            font-size: 0.95rem !important;
+            font-size: 0.96rem !important;
+            font-weight: 600 !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 0.90rem;
+            box-shadow: 0 2px 10px rgba(39, 52, 68, 0.045);
         }
         @media (max-width: 980px) {
             html, body, .stApp { font-size: 16px; }
@@ -358,7 +381,10 @@ def build_chart(
 
 
 def format_r2(value: float | None) -> str:
-    return "—" if value is None or not math.isfinite(value) else f"{value:.4f}"
+    """Presenta R² sin valores negativos, conservando el valor crudo en la nota."""
+    if value is None or not math.isfinite(value):
+        return "—"
+    return f"{max(value, 0.0):.4f}"
 
 
 def show_fit_metrics(title: str, fit: FitResult, color_label: str) -> None:
@@ -369,7 +395,10 @@ def show_fit_metrics(title: str, fit: FitResult, color_label: str) -> None:
     c3.metric("SSE = Σeᵢ²", f"{fit.sse:.3f}")
     c4.metric("R²", format_r2(fit.r2))
     if fit.r2 is not None and fit.r2 < 0:
-        st.caption("R² negativo: esta recta ajusta peor que utilizar la media de Y.")
+        st.caption(
+            f"R² negativo (valor crudo = {fit.r2:.4f}): "
+            "esta recta ajusta peor que utilizar la media de Y."
+        )
 
 
 def markdown_detail_table(
@@ -535,11 +564,6 @@ def render_visualization(
         beta0_mc, beta1_mc = least_squares(x, y)
         mc = evaluate_fit(x, y, beta0_mc, beta1_mc)
 
-    legend = ["● Datos", "━ Ajuste manual"]
-    if mc is not None:
-        legend.append("┄ Mínimos cuadrados")
-    st.caption("   ·   ".join(legend) + "   ·   Ejes fijos para facilitar la comparación")
-
     chart = build_chart(
         x,
         y,
@@ -556,7 +580,7 @@ def render_visualization(
             st.divider()
             show_fit_metrics("Mínimos cuadrados", mc, "🟢")
 
-    with st.expander("Detalle numérico por punto", expanded=False):
+    with st.expander("Contribuciones individuales a la Suma Cuadrada del Error", expanded=False):
         st.markdown(markdown_detail_table(x, y, manual, mc))
 
 
@@ -681,10 +705,7 @@ def resize_grid(delta: int, version: int, row_count: int) -> None:
 
 def render_own_data() -> None:
     st.subheader("Planilla de datos")
-    st.caption(
-        "Complete las celdas y pulse **Generar gráfico**. Editar, agregar, quitar o "
-        "vaciar filas no modifica el último gráfico confirmado."
-    )
+    st.caption("Complete las celdas y pulse **Generar gráfico**.")
 
     version = int(st.session_state.own_grid_version)
     row_count = int(st.session_state.own_grid_rows)
@@ -729,8 +750,8 @@ def render_own_data() -> None:
             x_value = columns[1].number_input(
                 f"X fila {index + 1}",
                 value=seed_rows[index].get("X"),
-                step=0.1,
-                format="%.6f",
+                step=0.01,
+                format="%.2f",
                 key=_grid_widget_key("x", version, index),
                 label_visibility="collapsed",
                 placeholder="Ingrese X",
@@ -738,8 +759,8 @@ def render_own_data() -> None:
             y_value = columns[2].number_input(
                 f"Y fila {index + 1}",
                 value=seed_rows[index].get("Y"),
-                step=0.1,
-                format="%.6f",
+                step=0.01,
+                format="%.2f",
                 key=_grid_widget_key("y", version, index),
                 label_visibility="collapsed",
                 placeholder="Ingrese Y",
@@ -784,7 +805,7 @@ def main() -> None:
     initialize_state()
 
     st.title("📐 Visualizador de Mínimos Cuadrados")
-    st.caption("Ajuste lineal interactivo, residuos y suma de cuadrados del error")
+    st.caption("Ajuste lineal interactivo. Diagnóstico, residuos y suma de cuadrados del error.")
 
     st.radio(
         "Origen de los datos",

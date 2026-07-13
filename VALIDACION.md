@@ -1,11 +1,11 @@
-# Validación técnica v8
+# Validación técnica v9
 
-- Compilación sintáctica de `app.py` y `least_squares.py`.
-- Pruebas unitarias del cálculo de mínimos cuadrados.
-- Arranque de Streamlit mediante `AppTest`.
-- Cambio a ingreso manual sin excepciones.
-- Vaciado de la grilla sin `st.data_editor`, pandas o Arrow en la interacción.
-- Confirmación vacía produce un mensaje de validación y conserva el gráfico anterior.
-- Carga de ejemplo y generación del gráfico.
-- Agregado y eliminación de filas conservando las celdas existentes.
-- Gráfico con altura fija de 440 px.
+- Compilación sintáctica de `app.py`: correcta.
+- Pruebas unitarias del módulo de mínimos cuadrados: correctas.
+- R² negativo se muestra como 0.0000.
+- La nota conserva el valor crudo negativo.
+- Celdas X/Y configuradas con formato `%.2f`.
+- Altura gráfica fijada en 500 px.
+- Leyenda textual superior eliminada.
+- Títulos y textos solicitados actualizados.
+- No se modificó la arquitectura estable de ingreso de datos.
