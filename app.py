@@ -80,94 +80,122 @@ def active_theme_colors() -> dict[str, str]:
 
 def apply_balanced_css() -> None:
     """Jerarquía tipográfica y superficies compatibles con ambos temas."""
+    theme = active_theme_type()
+
+    if theme == "dark":
+        metric_bg = "#1A2330"
+        metric_border = "#3C4B5F"
+        metric_text = "#E7EEF6"
+        caption_text = "#B8C7D9"
+    else:
+        metric_bg = "#F8FAFD"
+        metric_border = "#DCE4ED"
+        metric_text = "#273444"
+        caption_text = "#526171"
+
     st.markdown(
-        """
+        f"""
         <style>
-        .block-container {
+        .block-container {{
             max-width: 1500px;
             padding-top: 0.75rem;
             padding-bottom: 1.35rem;
-        }
-        html, body, .stApp {
+        }}
+        html, body, .stApp {{
             font-size: 17px;
-        }
-        h1 {
+        }}
+        h1 {{
             font-size: 1.86rem !important;
             line-height: 1.15 !important;
             margin-bottom: 0.18rem !important;
             letter-spacing: -0.015em;
-        }
-        h2 {
+        }}
+        h2 {{
             font-size: 1.34rem !important;
             line-height: 1.22 !important;
             margin-top: 0.30rem !important;
-        }
-        h3 {
+        }}
+        h3 {{
             font-size: 1.14rem !important;
             line-height: 1.22 !important;
-        }
+        }}
         div[data-testid="stWidgetLabel"] p,
-        div[data-testid="stMarkdownContainer"] p {
+        div[data-testid="stMarkdownContainer"] p {{
             font-size: 0.99rem;
             line-height: 1.42;
-        }
-        div[data-testid="stMetric"] {
-            background: var(--st-secondary-background-color, #F8FAFD);
-            border: 1px solid var(--st-border-color, #DCE4ED);
+        }}
+
+        /* Tarjetas de diagnóstico: fondo y texto se definen juntos. */
+        div[data-testid="stMetric"] {{
+            background-color: {metric_bg} !important;
+            border: 1px solid {metric_border} !important;
             border-radius: 0.80rem;
             padding: 0.62rem 0.72rem;
-        }
-        div[data-testid="stMetricLabel"] p {
+        }}
+        div[data-testid="stMetric"] *,
+        div[data-testid="stMetricLabel"],
+        div[data-testid="stMetricLabel"] *,
+        div[data-testid="stMetricValue"],
+        div[data-testid="stMetricValue"] *,
+        div[data-testid="stMetricDelta"],
+        div[data-testid="stMetricDelta"] * {{
+            color: {metric_text} !important;
+            -webkit-text-fill-color: {metric_text} !important;
+            opacity: 1 !important;
+        }}
+        div[data-testid="stMetricLabel"] p {{
             font-size: 0.89rem !important;
             font-weight: 600 !important;
-        }
-        div[data-testid="stMetricValue"] {
+        }}
+        div[data-testid="stMetricValue"] {{
             font-size: 1.25rem !important;
             letter-spacing: -0.01em;
-        }
-        div[data-testid="stCaptionContainer"] p {
+        }}
+        div[data-testid="stCaptionContainer"] p {{
             font-size: 0.90rem !important;
             line-height: 1.38 !important;
-            color: var(--st-text-color, #526171);
-            opacity: 0.74;
-        }
+            color: {caption_text} !important;
+            -webkit-text-fill-color: {caption_text} !important;
+            opacity: 0.92 !important;
+        }}
         div[data-testid="stButton"] button,
-        div[data-testid="stFormSubmitButton"] button {
+        div[data-testid="stFormSubmitButton"] button {{
             min-height: 2.55rem;
             padding: 0.42rem 0.74rem;
             white-space: nowrap !important;
             border-radius: 0.68rem;
             font-weight: 600;
-        }
+        }}
         div[data-testid="stButton"] button p,
-        div[data-testid="stFormSubmitButton"] button p {
+        div[data-testid="stFormSubmitButton"] button p {{
             font-size: 0.92rem !important;
             white-space: nowrap !important;
             line-height: 1.05 !important;
             color: inherit !important;
-        }
-        div[data-testid="stNumberInput"] input {
+            -webkit-text-fill-color: currentColor !important;
+        }}
+        div[data-testid="stNumberInput"] input {{
             border-radius: 0.58rem;
-        }
-        div[data-testid="stExpander"] {
+        }}
+        div[data-testid="stExpander"] {{
             border-radius: 0.75rem;
             overflow: hidden;
-        }
-        div[data-testid="stExpander"] summary p {
+        }}
+        div[data-testid="stExpander"] summary p {{
             font-size: 0.96rem !important;
             font-weight: 600 !important;
-        }
-        div[data-testid="stVerticalBlockBorderWrapper"] {
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 0.90rem;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
-        }
-        @media (max-width: 980px) {
-            html, body, .stApp { font-size: 16px; }
-            .block-container {
+        }}
+        @media (max-width: 980px) {{
+            html, body, .stApp {{ font-size: 16px; }}
+            .block-container {{
                 padding-left: 0.65rem;
                 padding-right: 0.65rem;
-            }
-        }
+            }}
+        }}
         </style>
         """,
         unsafe_allow_html=True,
