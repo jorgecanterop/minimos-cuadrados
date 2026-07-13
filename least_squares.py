@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import random
-import re
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,9 @@ def _as_finite_tuple(values: Iterable[float], name: str) -> tuple[float, ...]:
     return result
 
 
-def validate_xy(x: Iterable[float], y: Iterable[float]) -> tuple[tuple[float, ...], tuple[float, ...]]:
+def validate_xy(
+    x: Iterable[float], y: Iterable[float]
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
     x_values = _as_finite_tuple(x, "X")
     y_values = _as_finite_tuple(y, "Y")
     if len(x_values) != len(y_values):
@@ -91,51 +92,113 @@ def evaluate_fit(
     return FitResult(beta0, beta1, predictions, residuals, sse, r2)
 
 
-def parse_xy_text(text: str, max_rows: int = 500) -> tuple[tuple[float, ...], tuple[float, ...]]:
-    """Parsea pares X-Y separados por coma, punto y coma, tabulación o espacios."""
-    if not text or not text.strip():
-        raise ValueError("Ingrese al menos dos filas con pares X e Y.")
+def initial_manual_parameters(
+    x: Iterable[float], y: Iterable[float]
+) -> tuple[float, float]:
+    """Devuelve una recta inicial deliberadamente imperfecta, pero visible.
 
+    La recta se coloca cerca de MC y se comprueba contra un dominio vertical
+    basado en los datos. Si se sale, se interpola progresivamente hacia MC.
+    """
+    x_values, y_values = validate_xy(x, y)
+    beta0_mc, beta1_mc = least_squares(x_values, y_values)
+
+    mean_x = sum(x_values) / len(x_values)
+    mean_y = sum(y_values) / len(y_values)
+    x_span = max(max(x_values) - min(x_values), 1.0)
+    y_span = max(max(y_values) - min(y_values), 1.0)
+    slope_scale = max(y_span / x_span, abs(beta1_mc) * 0.35, 0.10)
+
+    direction = 1.0 if beta1_mc >= 0 else -1.0
+    candidate_beta1 = beta1_mc - direction * 0.24 * slope_scale
+    candidate_beta0 = (mean_y + 0.08 * y_span) - candidate_beta1 * mean_x
+
+    lower = min(y_values) - 0.30 * y_span
+    upper = max(y_values) + 0.30 * y_span
+    for fraction in (1.0, 0.8, 0.6, 0.4, 0.2, 0.0):
+        beta0 = beta0_mc + fraction * (candidate_beta0 - beta0_mc)
+        beta1 = beta1_mc + fraction * (candidate_beta1 - beta1_mc)
+        predictions = (beta0 + beta1 * xi for xi in x_values)
+        if all(lower <= value <= upper for value in predictions):
+            return float(beta0), float(beta1)
+
+    return float(beta0_mc), float(beta1_mc)
+
+
+def slider_parameter_ranges(
+    x: Iterable[float], y: Iterable[float]
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Rangos didácticos centrados en MC, suficientemente amplios y estables."""
+    x_values, y_values = validate_xy(x, y)
+    beta0_mc, beta1_mc = least_squares(x_values, y_values)
+    beta0_start, beta1_start = initial_manual_parameters(x_values, y_values)
+
+    mean_x = sum(x_values) / len(x_values)
+    x_span = max(max(x_values) - min(x_values), 1.0)
+    y_span = max(max(y_values) - min(y_values), 1.0)
+    slope_scale = max(y_span / x_span, abs(beta1_mc) * 0.50, 0.25)
+
+    beta1_margin = 1.35 * slope_scale
+    beta1_low = min(beta1_mc - beta1_margin, beta1_start)
+    beta1_high = max(beta1_mc + beta1_margin, beta1_start)
+
+    beta0_margin = max(
+        1.10 * y_span,
+        0.30 * abs(mean_x) * beta1_margin,
+        0.35 * abs(beta0_mc),
+        1.0,
+    )
+    beta0_low = min(beta0_mc - beta0_margin, beta0_start)
+    beta0_high = max(beta0_mc + beta0_margin, beta0_start)
+
+    return (
+        (float(beta0_low), float(beta0_high)),
+        (float(beta1_low), float(beta1_high)),
+    )
+
+
+def editor_rows_to_xy(
+    rows: Sequence[Mapping[str, object]],
+    max_rows: int = 500,
+) -> tuple[tuple[float, ...], tuple[float, ...], int]:
+    """Convierte filas de st.data_editor a X/Y.
+
+    Las filas vacías o parcialmente completadas se ignoran para permitir que el
+    usuario agregue observaciones de forma gradual. Devuelve cuántas filas
+    parciales fueron omitidas.
+    """
     pairs: list[tuple[float, float]] = []
-    errors: list[str] = []
+    incomplete = 0
 
-    for line_number, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
+    for row in rows:
+        raw_x = row.get("X")
+        raw_y = row.get("Y")
+        empty_x = raw_x is None or raw_x == ""
+        empty_y = raw_y is None or raw_y == ""
+
+        if empty_x and empty_y:
             continue
-
-        pieces = [piece for piece in re.split(r"[;,\t ]+", line) if piece]
-        if len(pieces) != 2:
-            # Permite una cabecera simple, por ejemplo: X,Y
-            lowered = "".join(pieces).lower()
-            if line_number == 1 and "x" in lowered and "y" in lowered:
-                continue
-            errors.append(f"línea {line_number}")
+        if empty_x or empty_y:
+            incomplete += 1
             continue
 
         try:
-            xi = float(pieces[0].replace(",", "."))
-            yi = float(pieces[1].replace(",", "."))
-        except ValueError:
-            if line_number == 1 and pieces[0].lower().startswith("x") and pieces[1].lower().startswith("y"):
-                continue
-            errors.append(f"línea {line_number}")
+            x_value = float(raw_x)
+            y_value = float(raw_y)
+        except (TypeError, ValueError):
+            incomplete += 1
+            continue
+        if not math.isfinite(x_value) or not math.isfinite(y_value):
+            incomplete += 1
             continue
 
-        if not math.isfinite(xi) or not math.isfinite(yi):
-            errors.append(f"línea {line_number}")
-            continue
-
-        pairs.append((xi, yi))
+        pairs.append((x_value, y_value))
         if len(pairs) > max_rows:
             raise ValueError(f"La aplicación admite como máximo {max_rows} observaciones.")
 
-    if errors:
-        shown = ", ".join(errors[:5])
-        suffix = "…" if len(errors) > 5 else ""
-        raise ValueError(f"No se pudieron interpretar: {shown}{suffix}. Use dos números por fila.")
     if len(pairs) < 2:
-        raise ValueError("Se necesitan al menos dos pares X-Y completos.")
+        raise ValueError("Ingrese al menos dos filas completas con valores X e Y.")
 
     x, y = zip(*pairs)
-    return validate_xy(x, y)
+    x_values, y_values = validate_xy(x, y)
+    return x_values, y_values, incomplete

@@ -1,27 +1,21 @@
-# Validación técnica
+# Validación técnica v6
 
-## Pruebas automatizadas
+## Pruebas de cálculo
 
-- Compilación sintáctica de `app.py` y `least_squares.py`: correcta.
-- Cinco pruebas unitarias: correctas.
-- Arranque local de Streamlit y endpoint de salud: `200 OK`.
-- Prueba con `streamlit.testing.v1.AppTest`: sin excepciones.
+- Cálculo de mínimos cuadrados sobre una recta exacta.
+- Recta manual inicial cercana a MC y dentro del dominio vertical didáctico.
+- Rangos de los deslizadores contienen tanto MC como el inicio manual.
+- Filas incompletas de la planilla se ignoran temporalmente sin interrumpir la app.
 
-## Flujos comprobados
+## Pruebas con Streamlit 1.59.1
 
-1. Ajuste manual en datos simulados con β₀ = 0.150 y β₁ = 1.200.
-2. Mostrar mínimos cuadrados después del ajuste manual.
-3. Alinear los parámetros manuales al ajuste por mínimos cuadrados.
-4. Cambiar al modo de datos propios.
-5. Cargar los datos de ejemplo.
-6. Ajustar manualmente β₀ = 1.100 y β₁ = 0.350.
-7. Mostrar el diagnóstico manual y el diagnóstico MC simultáneamente.
-
-## Decisiones de robustez
-
-- No se usan callbacks de sliders.
-- No se modifica el estado de un widget después de instanciarlo.
-- Los parámetros se envían en bloque mediante `st.form`.
-- El estado de sesión contiene solamente tipos serializables.
-- No se usan Matplotlib, NumPy, pandas, SciPy ni scikit-learn.
-- El gráfico tiene una altura fija de 245 píxeles.
+- Arranque inicial sin excepciones.
+- Detección de dos deslizadores nativos.
+- Cambio de β₀ y β₁ hasta los extremos permitidos sin excepciones.
+- Callback «Alinear con MC» sin errores de session_state.
+- Cambio al modo «Ingresar datos» sin excepciones.
+- Planilla dinámica creada mediante st.data_editor.
+- «Vaciar tabla» elimina el ajuste y muestra el mensaje correspondiente.
+- «Cargar ejemplo» reconstruye la planilla y los dos deslizadores.
+- Ejes gráficos independientes de los parámetros manuales.
+- Dependencias directas limitadas a Streamlit y Altair.
