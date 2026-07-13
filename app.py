@@ -25,12 +25,25 @@ MAX_SQUARES = 60
 MAX_POINT_LABELS = 20
 MAX_DETAIL_ROWS = 50
 
-COLORS = {
-    "points": "#D8756B",
-    "manual": "#2F7FC1",
-    "mc": "#2E9D62",
-    "grid": "#D6DEE8",
-    "text": "#273444",
+THEME_COLORS = {
+    "light": {
+        "points": "#D8756B",
+        "manual": "#2F7FC1",
+        "mc": "#2E9D62",
+        "grid": "#D6DEE8",
+        "text": "#273444",
+        "point_fill": "#FFFFFF",
+        "view_stroke": "#AAB7C4",
+    },
+    "dark": {
+        "points": "#F29A90",
+        "manual": "#78BDF2",
+        "mc": "#67D39A",
+        "grid": "#425466",
+        "text": "#E7EEF6",
+        "point_fill": "#111A26",
+        "view_stroke": "#64748B",
+    },
 }
 
 SAMPLE_ROWS = [
@@ -52,8 +65,21 @@ st.set_page_config(
 )
 
 
+def active_theme_type() -> str:
+    """Devuelve el tema activo de Streamlit con un respaldo seguro."""
+    try:
+        theme_type = str(st.context.theme.type).lower()
+    except (AttributeError, RuntimeError):
+        return "light"
+    return theme_type if theme_type in THEME_COLORS else "light"
+
+
+def active_theme_colors() -> dict[str, str]:
+    return THEME_COLORS[active_theme_type()]
+
+
 def apply_balanced_css() -> None:
-    """Jerarquía tipográfica equilibrada y botones sin saltos de línea."""
+    """Jerarquía tipográfica y superficies compatibles con ambos temas."""
     st.markdown(
         """
         <style>
@@ -86,8 +112,8 @@ def apply_balanced_css() -> None:
             line-height: 1.42;
         }
         div[data-testid="stMetric"] {
-            background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFD 100%);
-            border: 1px solid #DCE4ED;
+            background: var(--st-secondary-background-color, #F8FAFD);
+            border: 1px solid var(--st-border-color, #DCE4ED);
             border-radius: 0.80rem;
             padding: 0.62rem 0.72rem;
         }
@@ -102,7 +128,8 @@ def apply_balanced_css() -> None:
         div[data-testid="stCaptionContainer"] p {
             font-size: 0.90rem !important;
             line-height: 1.38 !important;
-            color: #526171;
+            color: var(--st-text-color, #526171);
+            opacity: 0.74;
         }
         div[data-testid="stButton"] button,
         div[data-testid="stFormSubmitButton"] button {
@@ -117,6 +144,7 @@ def apply_balanced_css() -> None:
             font-size: 0.92rem !important;
             white-space: nowrap !important;
             line-height: 1.05 !important;
+            color: inherit !important;
         }
         div[data-testid="stNumberInput"] input {
             border-radius: 0.58rem;
@@ -131,7 +159,7 @@ def apply_balanced_css() -> None:
         }
         div[data-testid="stVerticalBlockBorderWrapper"] {
             border-radius: 0.90rem;
-            box-shadow: 0 2px 10px rgba(39, 52, 68, 0.045);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
         }
         @media (max-width: 980px) {
             html, body, .stApp { font-size: 16px; }
@@ -256,6 +284,7 @@ def build_chart(
     mc: FitResult | None,
     show_e2_labels: bool,
 ) -> alt.LayerChart:
+    colors = active_theme_colors()
     x_domain, y_domain = chart_domains(x, y)
     x_scale = alt.Scale(domain=x_domain, nice=False)
     y_scale = alt.Scale(domain=y_domain, nice=False)
@@ -334,14 +363,19 @@ def build_chart(
                 )
             )
 
-    add_fit_layers(manual, COLORS["manual"], "right", dashed=False)
+    add_fit_layers(manual, colors["manual"], "right", dashed=False)
     if mc is not None:
-        add_fit_layers(mc, COLORS["mc"], "left", dashed=True)
+        add_fit_layers(mc, colors["mc"], "left", dashed=True)
 
     point_data = alt.Data(values=points)
     layers.append(
         alt.Chart(point_data)
-        .mark_circle(size=95, color="white", stroke=COLORS["points"], strokeWidth=2.2)
+        .mark_circle(
+            size=95,
+            color=colors["point_fill"],
+            stroke=colors["points"],
+            strokeWidth=2.2,
+        )
         .encode(
             x=alt.X("x:Q", scale=x_scale, title="X"),
             y=alt.Y("y:Q", scale=y_scale, title="Y"),
@@ -356,7 +390,7 @@ def build_chart(
     if len(x) <= MAX_POINT_LABELS:
         layers.append(
             alt.Chart(point_data)
-            .mark_text(dy=-14, fontSize=12, color=COLORS["text"], fontWeight="bold")
+            .mark_text(dy=-14, fontSize=12, color=colors["text"], fontWeight="bold")
             .encode(
                 x=alt.X("x:Q", scale=x_scale),
                 y=alt.Y("y:Q", scale=y_scale),
@@ -371,12 +405,12 @@ def build_chart(
             labelFontSize=14,
             titleFontSize=15,
             titleFontWeight="normal",
-            labelColor=COLORS["text"],
-            titleColor=COLORS["text"],
-            gridColor=COLORS["grid"],
+            labelColor=colors["text"],
+            titleColor=colors["text"],
+            gridColor=colors["grid"],
             gridOpacity=0.7,
         )
-        .configure_view(stroke="#AAB7C4", strokeWidth=0.8)
+        .configure_view(stroke=colors["view_stroke"], strokeWidth=0.8)
     )
 
 
@@ -571,7 +605,7 @@ def render_visualization(
         mc,
         bool(st.session_state[f"{prefix}_show_e2_labels"]),
     )
-    st.altair_chart(chart, width="stretch", theme=None, key=f"{prefix}_chart")
+    st.altair_chart(chart, width="stretch", theme="streamlit", key=f"{prefix}_chart")
 
     with st.container(border=True):
         st.subheader("Diagnóstico del ajuste")
