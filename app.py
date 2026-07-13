@@ -15,11 +15,12 @@ from least_squares import (
     initial_manual_parameters,
     least_squares,
     slider_parameter_ranges,
+    stable_chart_domains,
 )
 
 
 APP_TITLE = "Visualizador de Mínimos Cuadrados"
-CHART_HEIGHT = 285
+CHART_HEIGHT = 360
 MAX_SQUARES = 60
 MAX_POINT_LABELS = 20
 MAX_DETAIL_ROWS = 50
@@ -40,6 +41,8 @@ SAMPLE_ROWS = [
     {"X": 4.0, "Y": 6.479},
     {"X": 5.0, "Y": 6.781},
 ]
+
+EMPTY_ROWS = [{"X": None, "Y": None} for _ in range(6)]
 
 st.set_page_config(
     page_title=APP_TITLE,
@@ -142,6 +145,8 @@ def initialize_state() -> None:
         "own_data_signature": "",
         "own_editor_version": 0,
         "own_editor_seed": [dict(row) for row in SAMPLE_ROWS],
+        "own_committed_x": None,
+        "own_committed_y": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -181,21 +186,8 @@ def clamp(value: float, low: float, high: float) -> float:
 
 
 def chart_domains(x: tuple[float, ...], y: tuple[float, ...]) -> tuple[list[float], list[float]]:
-    """Dominios estables: no cambian al mover los deslizadores manuales."""
-    x_low, x_high, x_span = finite_range(x)
-    reference_y = list(y)
-    try:
-        beta0_mc, beta1_mc = least_squares(x, y)
-    except ValueError:
-        pass
-    else:
-        reference_y.extend(beta0_mc + beta1_mc * xi for xi in x)
-
-    y_low, y_high, y_span = finite_range(reference_y)
-    return (
-        [x_low - max(0.35, 0.08 * x_span), x_high + max(0.35, 0.08 * x_span)],
-        [y_low - max(0.45, 0.24 * y_span), y_high + max(0.45, 0.24 * y_span)],
-    )
+    """Dominios estables compartidos con la lógica de inicialización manual."""
+    return stable_chart_domains(x, y)
 
 
 def residual_records(
@@ -653,57 +645,94 @@ def normalize_editor_records(data: object) -> list[dict[str, object]]:
     return []
 
 
-def replace_editor_data(rows: list[dict[str, float]]) -> None:
-    st.session_state.own_editor_seed = [dict(row) for row in rows]
+def replace_editor_data(rows: list[dict[str, object]]) -> None:
+    """Reconstruye la planilla sin modificar un widget ya instanciado."""
+    safe_rows = [dict(row) for row in rows] if rows else [dict(row) for row in EMPTY_ROWS]
+    st.session_state.own_editor_seed = safe_rows
     st.session_state.own_editor_version += 1
+    st.session_state.own_committed_x = None
+    st.session_state.own_committed_y = None
+    st.session_state.own_show_mc = False
 
 
 def render_own_data() -> None:
     st.subheader("Planilla de datos")
-    st.caption("Agregue o elimine filas con los controles de la tabla. Las filas incompletas se ignoran temporalmente.")
-
-    editor_key = f"own_data_editor_{st.session_state.own_editor_version}"
-    edited = st.data_editor(
-        st.session_state.own_editor_seed,
-        key=editor_key,
-        width="stretch",
-        height=250,
-        hide_index=True,
-        num_rows="dynamic",
-        row_height=34,
-        column_order=("X", "Y"),
-        column_config={
-            "X": st.column_config.NumberColumn("X", format="%.3f"),
-            "Y": st.column_config.NumberColumn("Y", format="%.3f"),
-        },
+    st.caption(
+        "Edite la planilla y pulse **Generar gráfico**. Los cambios no afectan el gráfico "
+        "hasta que se confirman, lo que evita recálculos mientras se escribe."
     )
-    records = normalize_editor_records(edited)
-    st.session_state.own_editor_seed = [dict(row) for row in records]
 
-    c1, c2, spacer = st.columns([0.18, 0.18, 0.64])
-    c1.button(
+    actions = st.columns([0.20, 0.20, 0.60])
+    actions[0].button(
         "Cargar ejemplo",
         width="stretch",
         on_click=replace_editor_data,
         args=([dict(row) for row in SAMPLE_ROWS],),
     )
-    c2.button(
-        "Vaciar tabla",
+    actions[1].button(
+        "Vaciar planilla",
         width="stretch",
         on_click=replace_editor_data,
-        args=([],),
+        args=([dict(row) for row in EMPTY_ROWS],),
     )
 
-    try:
-        x, y, incomplete = editor_rows_to_xy(records)
-    except ValueError as exc:
-        st.info(str(exc), icon="ℹ️")
+    editor_key = f"own_data_editor_{st.session_state.own_editor_version}"
+    with st.form(
+        key=f"own_data_form_{st.session_state.own_editor_version}",
+        clear_on_submit=False,
+        enter_to_submit=False,
+    ):
+        edited = st.data_editor(
+            st.session_state.own_editor_seed,
+            key=editor_key,
+            width="stretch",
+            height=285,
+            hide_index=True,
+            num_rows="dynamic",
+            row_height=36,
+            column_order=("X", "Y"),
+            column_config={
+                "X": st.column_config.NumberColumn("X", format="%.3f"),
+                "Y": st.column_config.NumberColumn("Y", format="%.3f"),
+            },
+        )
+        generate = st.form_submit_button("Generar gráfico", width="stretch")
+
+    if generate:
+        records = normalize_editor_records(edited)
+        # Nunca se almacena una tabla de cero filas: se conservan filas vacías seguras.
+        st.session_state.own_editor_seed = (
+            [dict(row) for row in records] if records else [dict(row) for row in EMPTY_ROWS]
+        )
+        try:
+            x, y, incomplete = editor_rows_to_xy(records)
+        except ValueError as exc:
+            st.session_state.own_committed_x = None
+            st.session_state.own_committed_y = None
+            st.error(str(exc), icon="⚠️")
+        else:
+            st.session_state.own_committed_x = list(x)
+            st.session_state.own_committed_y = list(y)
+            st.session_state.own_show_mc = False
+            if incomplete:
+                st.warning(
+                    f"Se omitieron {incomplete} fila(s) incompleta(s) al generar el gráfico.",
+                    icon="⚠️",
+                )
+            else:
+                st.success("Gráfico generado con los datos confirmados.", icon="✅")
+
+    committed_x = st.session_state.own_committed_x
+    committed_y = st.session_state.own_committed_y
+    if committed_x is None or committed_y is None:
+        st.info(
+            "Complete al menos dos filas con valores distintos de X y pulse **Generar gráfico**.",
+            icon="ℹ️",
+        )
         return
 
-    if incomplete:
-        st.caption(f"Se omitieron temporalmente {incomplete} fila(s) incompleta(s).")
-
-    render_workspace("own", x, y)
+    st.divider()
+    render_workspace("own", committed_x, committed_y)
 
 
 def main() -> None:

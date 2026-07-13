@@ -1,21 +1,26 @@
-# Validación técnica v6
+# Validación técnica v7
 
-## Pruebas de cálculo
+## Cálculo
 
-- Cálculo de mínimos cuadrados sobre una recta exacta.
-- Recta manual inicial cercana a MC y dentro del dominio vertical didáctico.
-- Rangos de los deslizadores contienen tanto MC como el inicio manual.
-- Filas incompletas de la planilla se ignoran temporalmente sin interrumpir la app.
+- 7 pruebas unitarias aprobadas.
+- La recta inicial manual tiene una SSE al menos cuatro veces mayor que MC en el conjunto de ejemplo.
+- La recta inicial permanece dentro del dominio vertical del gráfico.
+- Los rangos de ambos deslizadores incluyen la recta inicial y MC.
+- Se validan planillas vacías y valores X sin variación.
 
-## Pruebas con Streamlit 1.59.1
+## Streamlit 1.59.1
+
+Pruebas realizadas con `streamlit.testing.v1.AppTest`:
 
 - Arranque inicial sin excepciones.
-- Detección de dos deslizadores nativos.
-- Cambio de β₀ y β₁ hasta los extremos permitidos sin excepciones.
-- Callback «Alinear con MC» sin errores de session_state.
-- Cambio al modo «Ingresar datos» sin excepciones.
-- Planilla dinámica creada mediante st.data_editor.
-- «Vaciar tabla» elimina el ajuste y muestra el mensaje correspondiente.
-- «Cargar ejemplo» reconstruye la planilla y los dos deslizadores.
-- Ejes gráficos independientes de los parámetros manuales.
-- Dependencias directas limitadas a Streamlit y Altair.
+- Movimiento de β₀ y β₁ hasta los extremos sin excepciones.
+- Cambio al modo de ingreso manual sin excepciones.
+- `Vaciar planilla` no produce excepciones.
+- `Generar gráfico` sobre una planilla vacía muestra un mensaje de validación y no falla.
+- `Cargar ejemplo` seguido de `Generar gráfico` crea los deslizadores y el gráfico sin excepciones.
+- La recta inicial del ejemplo usa β₀ = 4.810 y β₁ = −0.632, claramente separada de MC.
+
+## Validación sintáctica
+
+- `app.py`: compilación correcta.
+- `least_squares.py`: compilación correcta.
