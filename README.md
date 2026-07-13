@@ -1,6 +1,6 @@
 # Visualizador interactivo de mínimos cuadrados
 
-Una aplicación educativa para comprender, de forma visual y dinámica, cómo se construye una recta de regresión y cómo el método de mínimos cuadrados encuentra el mejor ajuste posible.
+Esta aplicación está pensada para comprender, de forma visual y dinámica, cómo se construye una recta de regresión y cómo el método de mínimos cuadrados encuentra el mejor ajuste posible.
 
 ## ¿Qué permite hacer esta aplicación?
 
@@ -88,18 +88,6 @@ En la sección **Contribuciones individuales a la Suma Cuadrada del Error** se p
 
 Esto permite comprender cómo se forma la SCE total a partir de los errores individuales.
 
-## Objetivo educativo
-
-El visualizador fue diseñado para acompañar la enseñanza de:
-
-- regresión lineal simple;
-- interpretación de pendiente e intercepto;
-- residuos;
-- mínimos cuadrados;
-- Suma Cuadrada del Error;
-- coeficiente de determinación R².
-
-La intención es que estos conceptos no se estudien únicamente mediante fórmulas, sino también a través de la exploración visual y la experimentación.
 
 ## Acceso a la aplicación
 
@@ -107,18 +95,4 @@ La aplicación puede utilizarse desde:
 
 **https://minimos-cuadrados.streamlit.app/**
 
-También puede integrarse en Google Sites para formar parte de una clase, guía práctica o recurso educativo.
-
-## Recomendación de uso para estudiantes
-
-1. Observe la distribución de los puntos.
-2. Modifique primero el intercepto β₀.
-3. Ajuste luego la pendiente β₁.
-4. Intente reducir la SCE.
-5. Compare su resultado con la recta de mínimos cuadrados.
-6. Analice qué observaciones contribuyen más al error.
-7. Repita el ejercicio con otros datos.
-
 ---
-
-Desarrollado como recurso didáctico para la enseñanza de regresión lineal y mínimos cuadrados.
